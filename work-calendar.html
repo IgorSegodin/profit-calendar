@@ -1,0 +1,252 @@
+<!DOCTYPE>
+<html>
+<head>
+    <style>
+        [weekend] {
+            color: red;
+        }
+
+        [holiday] {
+            border: 1px solid red;
+        }
+
+        [today] {
+            background-color: lightcyan;
+        }
+
+        [data-month] {
+            border: 1px solid black;
+            display: inline-block;
+        }
+
+        [data-day] {
+            text-align: right;
+        }
+    </style>
+
+    <script type="text/javascript" src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
+    <script type="text/javascript" src="http://underscorejs.org/underscore-min.js"></script>
+    <script type="text/javascript" src="https://momentjs.com/downloads/moment.min.js"></script>
+
+    <script type="text/javascript">
+        (function () {
+            _.templateSettings = {
+                evaluate: /{{#([\s\S]+?)}}/g,
+                interpolate: /{{((?:[^#])[\s\S]*?)}}/g,
+                escape: /{{-([\s\S]+?)}}/g
+            };
+
+            const DATE_FORMAT = "YYYY-MM-DD";
+
+            const CURRENT_YEAR = +moment().format('YYYY');
+            const CURRENT_MONTH = +moment().format('MM');
+            const CURRENT_DAY = +moment().format('DD');
+
+            const DAYS_IN_WEEK = 7;
+            const WORK_HOURS_IN_DAY = 8;
+
+            class Week {
+
+                constructor(days) {
+                    this.days = days || [];
+                }
+
+                getDays() {
+                    return this.days;
+                }
+            }
+
+            class Day {
+
+                constructor({number, today = false, holiday = false}) {
+                    this.number = number;
+                    this.today = today;
+                    this.holiday = holiday;
+                }
+
+                getNumber() {
+                    return this.number;
+                }
+
+                isToday() {
+                    return this.today;
+                }
+
+                isHoliday() {
+                    return this.holiday;
+                }
+            }
+
+            class Sprint {
+
+                constructor({startDate, endDate, number}) {
+                    this.startDate = startDate;
+                    this.endDate = endDate;
+                    this.number = number;
+                }
+
+                isRelatedDay({day, month = CURRENT_MONTH, year = CURRENT_YEAR}) {
+//                    moment(startDate, DATE_FORMAT);
+                }
+
+            }
+
+
+
+            const HOLIDAY_DATES = [
+                '2018-01-01',
+                '2018-01-08',
+                '2018-03-08',
+                '2018-04-09',
+                '2018-05-01',
+                '2018-05-09',
+                '2018-05-28',
+                '2018-06-28',
+                '2018-08-24',
+                '2018-10-15',
+                '2018-12-25'
+            ];
+
+            // TODO
+            const SPRINTS = [
+                new Sprint({number: 189, startDate: '2018-01-18', endDate: '2018-01-30'}),
+                new Sprint({number: 190, startDate: '2018-02-01', endDate: '2018-02-14'})
+            ];
+
+            function buildMonthData({year = CURRENT_YEAR, month}) {
+                const monthIndex = month - 1;
+                const monthStartWeekDay = +moment({year, month: monthIndex}).startOf("month").isoWeekday();
+                const monthEndWeekDay = +moment({year, month: monthIndex}).endOf("month").isoWeekday();
+                const daysInMonth = +moment({year, month: monthIndex}).endOf("month").format("D");
+
+                const numberOfRows = Math.ceil((monthStartWeekDay + daysInMonth + monthEndWeekDay) / DAYS_IN_WEEK);
+
+                let workingHours = 0;
+                let todayWorkingHours = 0;
+
+                const isCountTotalWorkingHours = moment({year, month: monthIndex}).startOf("month").isSameOrAfter(moment().startOf("month"));
+                const isCountTodayWorkingHours = year === CURRENT_YEAR && month === CURRENT_MONTH;
+
+                const weeks = [];
+                for (let y = 1; y <= numberOfRows; y++) {
+                    const days = [];
+                    for (let x = 1; x <= DAYS_IN_WEEK; x++) {
+                        const idx = (y * DAYS_IN_WEEK) - (DAYS_IN_WEEK - x);
+                        const day = idx - (monthStartWeekDay - 1);
+                        if (day > 0 && day <= daysInMonth) {
+                            const holiday = isHoliday({day, month, year});
+                            if (x < 6  && !holiday) {
+                                if (isCountTotalWorkingHours) {
+                                    workingHours += WORK_HOURS_IN_DAY;
+                                }
+                                if (isCountTodayWorkingHours && day <= CURRENT_DAY) {
+                                    todayWorkingHours += WORK_HOURS_IN_DAY;
+                                }
+                            }
+                            days.push(new Day({
+                                number: day,
+                                today: year === CURRENT_YEAR && month === CURRENT_MONTH && day === CURRENT_DAY,
+                                holiday
+                            }));
+                        } else {
+                            days.push(null);
+                        }
+                    }
+                    weeks.push(new Week(days));
+                }
+
+                return {
+                    weeks,
+                    number: +moment({year, month: monthIndex}).format('MM'),
+                    name: moment({year, month: monthIndex}).format("MMMM"),
+                    workingHours,
+                    todayWorkingHours
+                };
+            }
+
+            function isHoliday({day, month, year}) {
+                return HOLIDAY_DATES.indexOf(moment({day, month: month - 1, year}).format(DATE_FORMAT)) !== -1;
+            }
+
+            document.addEventListener("DOMContentLoaded", function (event) {
+                const monthTemplate = _.template(jQuery("#monthTemplate").html());
+                const $content = jQuery("#content");
+
+                function showToday() {
+                    $content.html(
+                        monthTemplate(buildMonthData({month: CURRENT_MONTH}))
+                    );
+                }
+
+                function showAll() {
+                    $content.empty();
+                    for (let i = 1; i <= 12; i++) {
+                        $content.append(
+                            monthTemplate(buildMonthData({month: i}))
+                        );
+                    }
+                }
+
+                jQuery("#todayBtn").on("click", showToday);
+                jQuery("#allBtn").on("click", showAll);
+
+                showToday();
+            });
+        })();
+    </script>
+</head>
+<body>
+<script id="monthTemplate" type="text/html">
+    <div data-month="{{number}}">
+        <div title="{{todayWorkingHours && workingHours ? (workingHours - todayWorkingHours) + ' hours left' : ''}}">
+            {{# if (todayWorkingHours && workingHours) { }}
+                <b>{{name}} ({{todayWorkingHours}} / {{workingHours}} hours)</b>
+            {{# } else if (workingHours) { }}
+                <b>{{name}} ({{workingHours}} hours)</b>
+            {{# } else { }}
+                <b>{{name}}</b>
+            {{# } }}
+        </div>
+        <table>
+            <thead>
+            <tr>
+                <td>Mon</td>
+                <td>Tue</td>
+                <td>Wed</td>
+                <td>Thu</td>
+                <td>Fri</td>
+                <td red>Sat</td>
+                <td red>Sun</td>
+            </tr>
+            </thead>
+            <tbody>
+            {{# weeks.forEach(function(week) { }}
+            <tr>
+                {{# week.getDays().forEach(function(day, idx) { }}
+                    {{# if (day) { }}
+                        <td
+                                data-day="{{day.getNumber()}}"
+                                {{idx> 4 ? 'weekend' : ''}}
+                                {{day.isToday() ? 'today' : ''}}
+                                {{day.isHoliday() ? 'holiday' : ''}}
+                            >{{day.getNumber()}}</td>
+                    {{# } else { }}
+                        <td></td>
+                    {{# } }}
+                {{# }); }}
+            </tr>
+            {{# }); }}
+            </tbody>
+        </table>
+    </div>
+</script>
+<button id="todayBtn">Show today</button>
+<button id="allBtn">Show all</button>
+<br>
+<br>
+
+
+<div id="content"></div>
+<div id="tooltip"></div>
+</body>
+</html>

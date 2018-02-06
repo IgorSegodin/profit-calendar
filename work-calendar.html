@@ -22,11 +22,15 @@
         [data-day] {
             text-align: right;
         }
+
+        table tbody tr td[data-day] {
+            border: 1px solid black;
+        }
     </style>
 
-    <script type="text/javascript" src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
-    <script type="text/javascript" src="http://underscorejs.org/underscore-min.js"></script>
-    <script type="text/javascript" src="https://momentjs.com/downloads/moment.min.js"></script>
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/underscore.js/1.8.3/underscore-min.js"></script>
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.20.1/moment.min.js"></script>
 
     <script type="text/javascript">
         (function () {
@@ -38,9 +42,9 @@
 
             const DATE_FORMAT = "YYYY-MM-DD";
 
-            const CURRENT_YEAR = +moment().format('YYYY');
-            const CURRENT_MONTH = +moment().format('MM');
-            const CURRENT_DAY = +moment().format('DD');
+            let CURRENT_YEAR = +moment().format('YYYY');
+            let CURRENT_MONTH = +moment().format('MM');
+            let CURRENT_DAY = +moment().format('DD');
 
             const DAYS_IN_WEEK = 7;
             const WORK_HOURS_IN_DAY = 8;
@@ -119,7 +123,7 @@
                 const monthEndWeekDay = +moment({year, month: monthIndex}).endOf("month").isoWeekday();
                 const daysInMonth = +moment({year, month: monthIndex}).endOf("month").format("D");
 
-                const numberOfRows = Math.ceil((monthStartWeekDay + daysInMonth + monthEndWeekDay) / DAYS_IN_WEEK);
+                const numberOfRows = (monthStartWeekDay - 1 + daysInMonth + (DAYS_IN_WEEK - monthEndWeekDay)) / DAYS_IN_WEEK;
 
                 let workingHours = 0;
                 let todayWorkingHours = 0;
@@ -191,6 +195,23 @@
                 jQuery("#allBtn").on("click", showAll);
 
                 showToday();
+
+                let mNow = moment();
+                let minutes = +mNow.format("mm");
+                let seconds = +mNow.format("ss");
+
+                let timeout = ((60 - minutes) * 60 + (60 - seconds)) * 1000;
+
+                setTimeout(()=> {
+                    setInterval(() => {
+                        CURRENT_YEAR = +moment().format('YYYY');
+                        CURRENT_MONTH = +moment().format('MM');
+                        CURRENT_DAY = +moment().format('DD');
+
+                        showToday();
+
+                    }, 1000 * 60 * 60)
+                }, timeout);
             });
         })();
     </script>

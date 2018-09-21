@@ -18,9 +18,16 @@
             background-color: lightcyan;
         }
 
+        [data-day][vacation] {
+            border: 2px solid green;
+        }
+
         [data-month] {
             border: 1px solid black;
             display: inline-block;
+            width: 210px;
+            height: 192px;
+            margin-top: 5px;
         }
 
         [data-day] {
@@ -30,6 +37,11 @@
         table tbody tr td[data-day] {
             border: 1px solid black;
         }
+
+        #version {
+            position: absolute;
+            bottom: 0px;
+        }
     </style>
 
     <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
@@ -37,6 +49,23 @@
     <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.20.1/moment.min.js"></script>
 
     <script type="text/javascript">
+
+        class Storage {
+
+            constructor({name}) {
+                this.name = name;
+            }
+
+            get(key) {
+                const rawData = localStorage.getItem(`${this.name}_${key}`);
+                return JSON.parse(rawData);
+            }
+
+            set(key, value) {
+                localStorage.setItem(`${this.name}_${key}`, JSON.stringify(value));
+            }
+        }
+
         (function () {
             _.templateSettings = {
                 evaluate: /{{#([\s\S]+?)}}/g,
@@ -53,6 +82,8 @@
             const DAYS_IN_WEEK = 7;
             const WORK_HOURS_IN_DAY = 8;
 
+            const storage = new Storage({name: "profit-calendar"});
+
             class Week {
 
                 constructor(days) {
@@ -66,14 +97,29 @@
 
             class Day {
 
-                constructor({number, today = false, holiday = false}) {
+                constructor({number, today = false, holiday = false, vacation = false}) {
                     this.number = number;
                     this.today = today;
                     this.holiday = holiday;
+                    this.vacation = vacation;
                 }
 
                 getNumber() {
                     return this.number;
+                }
+
+                getTitle() {
+                    const arr = [];
+                    if (this.isToday()) {
+                       arr.push("Current day");
+                    }
+                    if (this.isHoliday()) {
+                       arr.push("Holiday");
+                    }
+                    if (this.isVacation()) {
+                       arr.push("Vacation");
+                    }
+                    return arr.join(", ");
                 }
 
                 isToday() {
@@ -82,6 +128,10 @@
 
                 isHoliday() {
                     return this.holiday;
+                }
+
+                isVacation() {
+                    return this.vacation;
                 }
             }
 
@@ -99,8 +149,6 @@
 
             }
 
-
-
             const HOLIDAY_DATES = [
                 '2018-01-01',
                 '2018-01-08',
@@ -114,6 +162,8 @@
                 '2018-10-15',
                 '2018-12-25'
             ];
+
+            let vacationDates = storage.get("vacation-dates") || [];
 
             // TODO
             const SPRINTS = [
@@ -143,7 +193,8 @@
                         const day = idx - (monthStartWeekDay - 1);
                         if (day > 0 && day <= daysInMonth) {
                             const holiday = isHoliday({day, month, year});
-                            if (x < 6  && !holiday) {
+                            const vacation = isVacation({day, month, year});
+                            if (x < 6 && !holiday && !vacation) {
                                 if (isCountTotalWorkingHours) {
                                     workingHours += WORK_HOURS_IN_DAY;
                                 }
@@ -154,7 +205,8 @@
                             days.push(new Day({
                                 number: day,
                                 today: year === CURRENT_YEAR && month === CURRENT_MONTH && day === CURRENT_DAY,
-                                holiday
+                                holiday,
+                                vacation
                             }));
                         } else {
                             days.push(null);
@@ -173,17 +225,33 @@
             }
 
             function isHoliday({day, month, year}) {
-                return HOLIDAY_DATES.indexOf(moment({day, month: month - 1, year}).format(DATE_FORMAT)) !== -1;
+                return HOLIDAY_DATES.indexOf(formatDate({day, month, year})) !== -1;
+            }
+
+            function isVacation({day, month, year}) {
+                return vacationDates.indexOf(formatDate({day, month, year})) !== -1;
+            }
+
+            function formatDate({day, month, year}) {
+                return moment({day, month: month - 1, year}).format(DATE_FORMAT);
             }
 
             document.addEventListener("DOMContentLoaded", function (event) {
                 const monthTemplate = _.template(jQuery("#monthTemplate").html());
                 const $content = jQuery("#content");
 
+                let previousMode = null;
+
+                const modes = {
+                    "showToday": showToday,
+                    "showAll": showAll,
+                };
+
                 function showToday() {
                     $content.html(
                         monthTemplate(buildMonthData({month: CURRENT_MONTH}))
                     );
+                    previousMode = "showToday";
                 }
 
                 function showAll() {
@@ -193,10 +261,30 @@
                             monthTemplate(buildMonthData({month: i}))
                         );
                     }
+                    previousMode = "showAll";
                 }
 
                 jQuery("#todayBtn").on("click", showToday);
                 jQuery("#allBtn").on("click", showAll);
+
+                $content.on("click", "[data-day]", function (e) {
+                    const $target = jQuery(e.target);
+
+                    const day = $target.attr("data-day");
+                    const month = $target.closest("[data-month]").attr("data-month");
+
+                    const dateString = formatDate({day, month, CURRENT_YEAR});
+
+                    if ($target[0].hasAttribute("vacation")) {
+                        vacationDates.splice(vacationDates.indexOf(dateString), 1);
+                    } else {
+                        vacationDates.push(dateString);
+                    }
+
+                    storage.set("vacation-dates", vacationDates);
+
+                    modes[previousMode]();
+                });
 
                 showToday();
 
@@ -206,7 +294,7 @@
 
                 let timeout = ((60 - minutes) * 60 + (60 - seconds)) * 1000;
 
-                setTimeout(()=> {
+                setTimeout(() => {
                     setInterval(() => {
                         CURRENT_YEAR = +moment().format('YYYY');
                         CURRENT_MONTH = +moment().format('MM');
@@ -251,9 +339,11 @@
                     {{# if (day) { }}
                         <td
                                 data-day="{{day.getNumber()}}"
+                                title="{{day.getTitle()}}"
                                 {{idx> 4 ? 'weekend' : ''}}
                                 {{day.isToday() ? 'today' : ''}}
                                 {{day.isHoliday() ? 'holiday' : ''}}
+                                {{day.isVacation() ? 'vacation' : ''}}
                             >{{day.getNumber()}}</td>
                     {{# } else { }}
                         <td></td>
@@ -273,5 +363,6 @@
 
 <div id="content"></div>
 <div id="tooltip"></div>
+<div id="version">v1.0.2</div>
 </body>
 </html>
